@@ -1,0 +1,2114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gestão de Frota & Preventiva</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Ajustes finos para toque e rolagem suave em dispositivos móveis */
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      overscroll-behavior-y: contain;
+    }
+    /* Barra de rolagem discreta */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-brand-600 selection:text-white">
+
+  <!-- Toast / Notificação Flutuante (Substitui alert()) -->
+  <div id="toastContainer" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md pointer-events-none flex flex-col gap-2"></div>
+
+  <!-- Cabeçalho Fixo Superior -->
+  <header class="sticky top-0 z-30 bg-slate-900 text-white shadow-md">
+    <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shrink-0 shadow-inner">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+          </svg>
+        </div>
+        <div class="truncate">
+          <h1 class="text-base font-bold leading-tight tracking-tight truncate">Frota Preventiva</h1>
+          <p id="headerSubtitle" class="text-xs text-slate-400 truncate">Nenhuma base carregada</p>
+        </div>
+      </div>
+
+      <!-- Ações Rápidas do Topo -->
+      <div id="headerActions" class="hidden flex items-center gap-1.5 shrink-0">
+        <button onclick="openExportModal()" class="min-h-[44px] px-3 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Exportar</span>
+        </button>
+        <button onclick="openFileMenuModal()" aria-label="Gerenciar Arquivo" class="min-h-[44px] min-w-[44px] p-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-xl flex items-center justify-center transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Input de Arquivo Oculto -->
+  <input type="file" id="csvFileInput" accept=".csv,text/csv" class="hidden" onchange="handleFileSelect(event)">
+
+  <!-- Tela Inicial (Onboarding quando não há base carregada) -->
+  <main id="emptyState" class="flex-1 flex flex-col items-center justify-center p-5 max-w-lg mx-auto w-full">
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 sm:p-8 w-full text-center">
+      <div class="w-16 h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <h2 class="text-xl font-extrabold text-slate-900 mb-2">Controle de Manutenção</h2>
+      <p class="text-sm text-slate-600 mb-6 leading-relaxed">
+        Importe o relatório <strong>.CSV</strong> da frota para visualizar planos vencidos, atualizar odômetros e dar baixa nas preventivas direto pelo celular.
+      </p>
+
+      <div class="flex flex-col gap-3">
+        <button onclick="triggerFileInput()" class="w-full min-h-[52px] px-5 py-3.5 bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold rounded-2xl shadow-md shadow-brand-600/20 flex items-center justify-center gap-2.5 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <span>Selecionar Arquivo CSV</span>
+        </button>
+
+        <button onclick="loadDemoData()" class="w-full min-h-[48px] px-5 py-3 bg-slate-100 hover:bg-slate-200 active:scale-[0.99] text-slate-700 font-semibold text-sm rounded-2xl transition">
+          Carregar Dados de Exemplo
+        </button>
+      </div>
+
+      <div class="mt-6 pt-5 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-center gap-1.5">
+        <svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <span>Processamento 100% offline no seu dispositivo</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Aplicação Principal (Exibida após carregar dados) -->
+  <main id="appContainer" class="hidden flex-1 max-w-3xl mx-auto w-full px-3 sm:px-4 pt-4 pb-20 space-y-4">
+
+    <!-- Dashboard / Resumo em Cards Clicáveis -->
+    <section aria-label="Resumo da Frota" class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <!-- Total Veículos -->
+      <button onclick="setQuickStatusFilter('ALL')" id="cardStatAll" class="stat-card text-left bg-white p-3 rounded-2xl border-2 border-brand-600 shadow-sm transition active:scale-[0.98]">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Frota</span>
+          <span class="w-2 h-2 rounded-full bg-brand-600"></span>
+        </div>
+        <div id="statTotalVehicles" class="text-xl sm:text-2xl font-extrabold text-slate-900">0</div>
+        <div id="statTotalPlans" class="text-[11px] text-slate-500 mt-0.5 truncate">0 planos</div>
+      </button>
+
+      <!-- Vencidos -->
+      <button onclick="setQuickStatusFilter('VENCIDO')" id="cardStatVencido" class="stat-card text-left bg-white p-3 rounded-2xl border-2 border-transparent shadow-sm transition active:scale-[0.98]">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-bold text-red-600 uppercase tracking-wider">Vencidos</span>
+          <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+        </div>
+        <div id="statVencidos" class="text-xl sm:text-2xl font-extrabold text-red-600">0</div>
+        <div id="statVehiclesVencidos" class="text-[11px] text-slate-500 mt-0.5 truncate">em 0 carros</div>
+      </button>
+
+      <!-- KM Estourado / Anomalias -->
+      <button onclick="setQuickStatusFilter('ESTOURADO')" id="cardStatEstourado" class="stat-card text-left bg-white p-3 rounded-2xl border-2 border-transparent shadow-sm transition active:scale-[0.98]">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-bold text-purple-700 uppercase tracking-wider">KM Estourado</span>
+          <span class="w-2 h-2 rounded-full bg-purple-600"></span>
+        </div>
+        <div id="statEstourados" class="text-xl sm:text-2xl font-extrabold text-purple-700">0</div>
+        <div id="statVehiclesEstourados" class="text-[11px] text-slate-500 mt-0.5 truncate">em 0 carros</div>
+      </button>
+
+      <!-- Limite Superior / Inferior -->
+      <button onclick="setQuickStatusFilter('LIMITE')" id="cardStatLimite" class="stat-card text-left bg-white p-3 rounded-2xl border-2 border-transparent shadow-sm transition active:scale-[0.98]">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-bold text-amber-600 uppercase tracking-wider">No Limite</span>
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+        </div>
+        <div id="statLimites" class="text-xl sm:text-2xl font-extrabold text-amber-600">0</div>
+        <div class="text-[11px] text-slate-500 mt-0.5 truncate">Sup. / Inferior</div>
+      </button>
+
+      <!-- Em Dia -->
+      <button onclick="setQuickStatusFilter('EM_DIA')" id="cardStatEmDia" class="col-span-2 sm:col-span-1 stat-card text-left bg-white p-3 rounded-2xl border-2 border-transparent shadow-sm transition active:scale-[0.98]">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Em Dia</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        </div>
+        <div id="statEmDia" class="text-xl sm:text-2xl font-extrabold text-emerald-600">0</div>
+        <div class="text-[11px] text-slate-500 mt-0.5 truncate">planos regulares</div>
+      </button>
+    </section>
+
+    <!-- Filtro Rápido por Garagem (Pílulas Horizontais) -->
+    <section aria-label="Filtro por Garagem" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Garagem</span>
+        <span id="activeGarageBadge" class="text-[11px] font-semibold text-brand-600">Todas selecionadas</span>
+      </div>
+      <div id="garagePillsContainer" class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <!-- Preenchido via JS -->
+      </div>
+    </section>
+
+    <!-- Filtro Rápido para Alternar entre Planos Vencidos (Pílulas Horizontais) -->
+    <section id="overduePlansQuickSection" aria-label="Alternar Planos Vencidos" class="bg-white p-3 rounded-2xl shadow-sm border border-red-200/80">
+      <div class="flex items-center justify-between mb-2 gap-2">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse shrink-0"></span>
+          <span class="text-[11px] font-bold text-red-700 uppercase tracking-wider truncate">Planos Vencidos (Alternar)</span>
+        </div>
+        <span id="activeOverduePlanBadge" class="text-[11px] font-semibold text-slate-500 shrink-0">Todos os planos</span>
+      </div>
+      <div id="overduePlansPillsContainer" class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <!-- Preenchido via JS -->
+      </div>
+    </section>
+
+    <!-- Barra de Busca, Situação e Ordenação -->
+    <section class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+      <!-- Campo de Busca -->
+      <div class="relative">
+        <svg class="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Buscar nº do carro (ex: 435) ou plano (ex: ÓLEO)..."
+          oninput="debouncedFilter()"
+          class="w-full min-h-[46px] pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+        >
+        <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Filtros Secundários (Garagem + Plano + Situação + Ordenação) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div>
+          <label for="garageSelect" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Garagem</label>
+          <select id="garageSelect" onchange="selectGarage(this.value)" class="w-full min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="ALL">Todas as Garagens</option>
+            <option value="Bandeirantes">Bandeirantes</option>
+            <option value="Vitorino">Vitorino</option>
+            <option value="São Francisco">São Francisco</option>
+            <option value="Sem Garagem">Sem Garagem</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="planFilter" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Plano de Manutenção</label>
+          <select id="planFilter" onchange="selectPlanFromDropdown(this.value)" class="w-full min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="ALL">Todos os Planos</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="statusFilter" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Situação / Alerta</label>
+          <select id="statusFilter" onchange="onStatusFilterChange()" class="w-full min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="ALL">Todos os Carros</option>
+            <option value="VENCIDO">Somente Vencidos</option>
+            <option value="ESTOURADO">KM Estourado / Erro Hodôm.</option>
+            <option value="VIRADA">↳ Virada / Erro Hodôm. (Atual &lt; Últ.)</option>
+            <option value="ZERADA">↳ Base Zerada (Hodôm. &le; 10)</option>
+            <option value="SEVERO">↳ Estouro Severo (+100k km)</option>
+            <option value="ALERTAS">Todos Alertas (Venc. + Limites)</option>
+            <option value="LIMITE">Somente No Limite</option>
+            <option value="EM_DIA">100% Em Dia</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="sortSelect" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Ordenar Por</label>
+          <select id="sortSelect" onchange="applyFilters()" class="w-full min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="FLEET_ASC">Nº Frota (Crescente)</option>
+            <option value="VENCIDOS_DESC">Mais Planos Vencidos</option>
+            <option value="ESTOURO_DESC">Maior Estouro de KM</option>
+            <option value="KM_DESC">Maior KM Atual</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Info de Resultados, Limpar Filtros & Toggle de Exibição de Planos -->
+      <div class="flex items-center justify-between pt-1 text-xs text-slate-500 gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <span id="resultsCount" class="font-medium">Mostrando 0 carros</span>
+          <button type="button" id="resetAllFiltersBtn" onclick="resetAllFilters()" class="hidden px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-brand-700 font-bold text-[11px] transition">
+            Limpar filtros
+          </button>
+        </div>
+        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+          <input type="checkbox" id="onlyAlertPlansToggle" onchange="renderVehicleList(true)" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300">
+          <span class="font-medium text-slate-700">Filtrar planos internos</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Lista de Veículos -->
+    <section id="vehicleList" class="space-y-3" aria-label="Lista de Veículos"></section>
+
+    <!-- Botão Carregar Mais (Paginação Leve) -->
+    <div id="loadMoreContainer" class="hidden pt-2 pb-6 text-center">
+      <button onclick="loadMoreVehicles()" class="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 font-bold text-sm rounded-2xl border border-slate-300 shadow-sm transition">
+        Carregar mais carros (<span id="remainingCount">0</span> restantes)
+      </button>
+    </div>
+  </main>
+
+  <!-- MODAL 1: Atualizar KM do Veículo -->
+  <div id="kmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-slide-up safe-bottom">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider text-brand-400 font-bold">Atualizar Odômetro</span>
+          <h3 id="kmModalTitle" class="text-lg font-extrabold">Carro 1</h3>
+        </div>
+        <button onclick="closeModal('kmModal')" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form onsubmit="saveVehicleKm(event)" class="p-5 space-y-4">
+        <input type="hidden" id="kmModalVehicleIdx">
+
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between">
+          <div>
+            <span class="text-xs text-slate-500 block">KM Anterior Registrado</span>
+            <strong id="kmModalOldKm" class="text-base font-extrabold text-slate-800">0 km</strong>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-slate-500 block">Data Ref.</span>
+            <strong id="kmModalRefDate" class="text-sm font-semibold text-slate-700">--/--/----</strong>
+          </div>
+        </div>
+
+        <div>
+          <label for="kmModalInput" class="block text-sm font-bold text-slate-800 mb-1.5">Novo KM Atual</label>
+          <input
+            type="number"
+            id="kmModalInput"
+            required
+            min="0"
+            step="1"
+            oninput="validateKmInput()"
+            class="w-full min-h-[52px] px-4 py-3 text-xl font-extrabold text-slate-900 bg-white border-2 border-slate-300 rounded-2xl focus:outline-none focus:border-brand-600"
+          >
+          <p id="kmModalWarning" class="hidden mt-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+            Atenção: O KM informado é menor que o atual. Verifique se não há erro de digitação antes de confirmar.
+          </p>
+        </div>
+
+        <div>
+          <label for="kmModalDateInput" class="block text-xs font-bold text-slate-600 uppercase mb-1">Data da Leitura</label>
+          <input
+            type="date"
+            id="kmModalDateInput"
+            required
+            class="w-full min-h-[46px] px-3.5 py-2.5 text-sm font-semibold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:border-brand-600"
+          >
+        </div>
+
+        <div class="pt-2 flex gap-2.5">
+          <button type="button" onclick="closeModal('kmModal')" class="flex-1 min-h-[48px] px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl transition">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-2 min-h-[48px] px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-2xl shadow-md transition">
+            Salvar e Recalcular
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Dar Baixa / Corrigir Hodômetro Base -->
+  <div id="baixaModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden safe-bottom">
+      <div id="baixaModalHeader" class="px-5 py-4 bg-emerald-700 text-white flex items-center justify-between">
+        <div class="min-w-0 pr-2">
+          <span id="baixaModalBadge" class="text-[11px] uppercase tracking-wider text-emerald-200 font-bold">Registrar Preventiva</span>
+          <h3 id="baixaModalTitle" class="text-base font-extrabold truncate">016-REVISÃO ARRANQUE</h3>
+          <p id="baixaModalSub" class="text-xs text-emerald-100">Carro 1</p>
+        </div>
+        <button onclick="closeModal('baixaModal')" class="w-10 h-10 rounded-full bg-black/20 hover:bg-black/30 flex items-center justify-center text-white shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form onsubmit="savePlanBaixa(event)" class="p-5 space-y-3.5">
+        <input type="hidden" id="baixaVehicleIdx">
+        <input type="hidden" id="baixaPlanIdx">
+
+        <div id="baixaAnomalyAlert" class="hidden bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-900 space-y-1">
+          <div class="font-bold flex items-center gap-1.5">
+            <span>⚠️ Anomalia de Hodômetro Detectada</span>
+          </div>
+          <p id="baixaAnomalyText">O hodômetro da última manutenção está divergente do KM atual do carro. Confirme o hodômetro correto abaixo para zerar o erro.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="baixaDateInput" class="block text-xs font-bold text-slate-700 uppercase mb-1">Data Ref. / Execução</label>
+            <input type="date" id="baixaDateInput" required class="w-full min-h-[46px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+          <div>
+            <label for="baixaKmInput" class="block text-xs font-bold text-slate-700 uppercase mb-1">Hodômetro Base (KM)</label>
+            <input type="number" id="baixaKmInput" required min="0" step="1" class="w-full min-h-[46px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-extrabold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="baixaOsInput" class="block text-xs font-bold text-slate-700 uppercase mb-1">Nº O.S.</label>
+            <input type="text" id="baixaOsInput" placeholder="Ex: 1094520" class="w-full min-h-[46px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+          <div>
+            <label for="baixaOficInput" class="block text-xs font-bold text-slate-700 uppercase mb-1">Oficina</label>
+            <input type="text" id="baixaOficInput" placeholder="Ex: 206" class="w-full min-h-[46px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:border-emerald-600 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+          Ao confirmar, o hodômetro base deste plano será atualizado, recalculando o rodado e removendo o estouro/vencimento.
+        </div>
+
+        <div class="pt-2 flex gap-2.5">
+          <button type="button" onclick="closeModal('baixaModal')" class="flex-1 min-h-[48px] px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl transition">
+            Cancelar
+          </button>
+          <button type="submit" id="baixaSubmitBtn" class="flex-2 min-h-[48px] px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl shadow-md transition">
+            Confirmar Baixa
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Exportar CSV -->
+  <div id="exportModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden safe-bottom">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider text-emerald-400 font-bold">Download da Base</span>
+          <h3 class="text-lg font-extrabold">Exportar Arquivo CSV</h3>
+        </div>
+        <button onclick="closeModal('exportModal')" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3">
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Escolha o formato de saída. Todas as atualizações de KM e baixas realizadas nesta sessão serão incluídas no arquivo.
+        </p>
+
+        <button onclick="exportCSV('BLOCKS')" class="w-full text-left p-4 rounded-2xl border-2 border-brand-600 bg-brand-50/50 hover:bg-brand-50 transition flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          </div>
+          <div>
+            <div class="font-bold text-sm text-slate-900">Formato Original em Blocos (ISO-8859-1)</div>
+            <div class="text-xs text-slate-600 mt-0.5">Preserva a estrutura exata do relatório do sistema da frota para reimportação futura.</div>
+          </div>
+        </button>
+
+        <button onclick="exportCSV('FLAT')" class="w-full text-left p-4 rounded-2xl border border-slate-200 hover:bg-slate-50 transition flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          </div>
+          <div>
+            <div class="font-bold text-sm text-slate-900">Tabela Plana para Excel (UTF-8)</div>
+            <div class="text-xs text-slate-600 mt-0.5">Gera uma tabela única com o prefixo do veículo em cada linha, ideal para filtros no Excel.</div>
+          </div>
+        </button>
+
+        <div class="pt-2">
+          <button onclick="closeModal('exportModal')" class="w-full min-h-[46px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-2xl">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: Gerenciar Arquivo / Nova Importação -->
+  <div id="fileMenuModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden safe-bottom">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Base de Dados</span>
+          <h3 class="text-lg font-extrabold">Gerenciar Arquivo</h3>
+        </div>
+        <button onclick="closeModal('fileMenuModal')" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3">
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs space-y-1">
+          <div class="text-slate-500">Arquivo ativo:</div>
+          <div id="activeFileName" class="font-bold text-slate-900 truncate">-</div>
+          <div id="activeFileSavedAt" class="text-slate-400">Salvo automaticamente no navegador</div>
+        </div>
+
+        <button onclick="closeModal('fileMenuModal'); triggerFileInput();" class="w-full min-h-[48px] px-4 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-2xl flex items-center justify-center gap-2 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <span>Importar Novo CSV</span>
+        </button>
+
+        <button onclick="closeModal('fileMenuModal'); loadDemoData();" class="w-full min-h-[48px] px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm rounded-2xl transition">
+          Carregar Dados de Exemplo
+        </button>
+
+        <button onclick="clearStoredData()" class="w-full min-h-[48px] px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-sm rounded-2xl transition">
+          Limpar Memória Local
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * MAPEAMENTO COMPLETO DE GARAGENS (546 VEÍCULOS)
+     */
+    const GARAGE_MAP = (() => {
+      const map = {};
+      const bandeirantes = [
+        1, 4, 6, 8, 11, 12, 13, 14, 16, 18, 19, 21, 22, 23, 25, 26, 27, 47, 48, 50,
+        52, 55, 56, 57, 58, 59, 61, 62, 63, 86, 88, 89, 101, 104, 114, 204, 205, 206,
+        214, 215, 216, 218, 219, 221, 228, 234, 237, 240, 243, 245, 246, 248, 260, 261,
+        268, 269, 270, 281, 297, 298, 304, 307, 308, 309, 313, 320, 322, 343, 344, 345,
+        346, 348, 349, 350, 352, 353, 354, 355, 356, 357, 385, 386, 387, 396, 397, 398,
+        399, 403, 404, 407, 408, 409, 424, 427, 431, 432, 433, 434, 435, 436, 437, 438,
+        439, 440, 449, 451, 452, 453, 456, 459, 736, 742, 750, 898, 899, 900, 901, 906,
+        907, 912
+      ];
+      const vitorino = [
+        2, 3, 5, 17, 24, 40, 41, 43, 46, 49, 51, 60, 64, 65, 68, 69, 70, 76, 82, 85,
+        95, 97, 98, 99, 102, 105, 113, 126, 192, 193, 194, 195, 196, 197, 198, 199,
+        203, 207, 209, 210, 211, 213, 220, 222, 223, 224, 225, 229, 236, 252, 254, 299,
+        311, 312, 319, 321, 326, 327, 328, 347, 351, 362, 442, 443, 444, 445, 446, 447,
+        448, 450, 454, 457, 458, 460, 483, 484, 700, 703, 704, 705, 706, 707, 710, 711,
+        712, 713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723, 724, 725, 726, 727,
+        728, 730, 732, 733, 734, 735, 737, 739, 740, 741, 744, 746, 747, 748, 752, 753,
+        754, 756, 758, 759, 761, 762, 763, 764, 765, 766, 768, 770, 771, 772, 773, 774,
+        775, 776, 778, 779, 780, 781, 783, 784, 785, 786, 790, 791, 793, 794, 795, 797,
+        799, 800, 801, 803, 820, 821, 822, 823, 824, 825, 826, 829, 830, 831, 832, 833,
+        834, 835, 836, 837, 839, 841, 842, 843, 844, 847, 848, 849, 850, 851, 852, 853,
+        857, 858, 859, 861, 862, 863, 866, 868, 869, 871, 889, 890, 891, 892, 894, 895,
+        897, 905, 908, 910, 916, 917, 918, 920, 921, 922, 923, 926, 121403, 121701,
+        121702, 121703, 121704, 121705, 121706, 121707, 221011, 322101, 322102, 322103,
+        322104, 221312
+      ];
+      const saoFrancisco = [
+        9, 10, 15, 20, 37, 38, 39, 42, 44, 45, 53, 54, 66, 67, 71, 72, 73, 74, 75, 87,
+        90, 91, 92, 93, 94, 96, 100, 103, 106, 107, 108, 109, 110, 111, 112, 115, 116,
+        117, 118, 119, 120, 200, 201, 202, 208, 212, 217, 226, 227, 235, 241, 242, 244,
+        247, 249, 250, 251, 253, 255, 256, 257, 258, 259, 310, 323, 324, 325, 338, 339,
+        340, 341, 342, 358, 359, 360, 361, 363, 364, 365, 366, 367, 368, 384, 388, 389,
+        400, 406, 412, 413, 414, 415, 416, 417, 418, 419, 420, 421, 422, 425, 426, 428,
+        441, 455, 461, 462, 463, 464, 465, 466, 467, 468, 469, 471, 472, 473, 474, 475,
+        476, 477, 478, 479, 480, 481, 482, 485, 486, 487, 488, 489, 701, 702, 708, 709,
+        729, 731, 738, 743, 745, 749, 751, 760, 767, 777, 782, 787, 788, 789, 792, 796,
+        798, 802, 804, 805, 806, 807, 808, 809, 810, 811, 812, 813, 814, 815, 816, 817,
+        818, 827, 828, 838, 840, 845, 846, 854, 855, 856, 870, 872, 873, 874, 875, 876,
+        877, 878, 879, 880, 881, 882, 883, 884, 885, 886, 887, 888, 893, 902, 909, 911,
+        913, 914, 915, 919, 924, 925, 927
+      ];
+
+      bandeirantes.forEach(n => map[String(n)] = 'Bandeirantes');
+      vitorino.forEach(n => map[String(n)] = 'Vitorino');
+      saoFrancisco.forEach(n => map[String(n)] = 'São Francisco');
+      return map;
+    })();
+
+    /**
+     * Extrai apenas o número limpo da frota (ex: '027/001' -> '1', '077/435' -> '435', '027/S402' -> 'S402')
+     */
+    function extractCleanFleetNumber(rawPrefix) {
+      const part = rawPrefix.includes('/') ? rawPrefix.split('/').slice(1).join('/') : rawPrefix;
+      const trimmed = part.trim();
+      if (/^\d+$/.test(trimmed)) {
+        return String(parseInt(trimmed, 10));
+      }
+      return trimmed;
+    }
+
+    function getGarageForFleet(cleanNumber) {
+      return GARAGE_MAP[cleanNumber] || 'Sem Garagem';
+    }
+
+    /**
+     * Classifica anomalia de KM estourado / hodômetro
+     */
+    function classifyKmAnomaly(vehicleKm, plan) {
+      if (plan.intKm <= 0) return null;
+
+      // 1. Virada / Erro de Hodômetro: KM atual menor que o último hodômetro registrado
+      if (vehicleKm < plan.lastHodom) {
+        return {
+          type: 'VIRADA',
+          label: 'Virada/Erro Hodôm. (Atual < Última)',
+          shortLabel: 'Virada/Erro Hodôm.'
+        };
+      }
+
+      // 2. Base Zerada: Hodômetro inicial <= 10 com diferença > 50.000 km
+      if (plan.lastHodom <= 10 && plan.difKm > 50000) {
+        return {
+          type: 'ZERADA',
+          label: `Base Zerada (Hodôm. = ${plan.lastHodom})`,
+          shortLabel: 'Base Zerada'
+        };
+      }
+
+      // 3. Estouro Severo: Passou mais de 100.000 km do prazo com hodômetro válido
+      if (plan.difKm > 100000 && vehicleKm >= plan.lastHodom && plan.lastHodom > 10) {
+        return {
+          type: 'SEVERO',
+          label: 'Estouro Severo (+100k km)',
+          shortLabel: 'Estouro +100k'
+        };
+      }
+
+      return null;
+    }
+
+    /**
+     * ESTADO GLOBAL DA APLICAÇÃO
+     */
+    const STORAGE_KEY = 'frota_preventiva_state_v2';
+    const PAGE_SIZE = 25;
+
+    let appState = {
+      fileName: '',
+      lastUpdated: null,
+      headerLines: [], // Linhas de metadados antes do primeiro 'Veiculo:'
+      globalRefDate: '',
+      vehicles: []     // Array de objetos de veículos
+    };
+
+    let selectedGarage = 'ALL';
+    let selectedPlan = 'ALL';
+    let filteredVehicleIndices = [];
+    let renderedCount = 0;
+    let expandedVehicles = new Set();
+    let searchTimeout = null;
+
+    /**
+     * INICIALIZAÇÃO E RESTAURAÇÃO DO LOCALSTORAGE
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.vehicles) && parsed.vehicles.length > 0) {
+            // Garante retrocompatibilidade de campos novos
+            parsed.vehicles.forEach(v => {
+              if (!v.fleetNumber) v.fleetNumber = extractCleanFleetNumber(v.prefix);
+              v.garage = getGarageForFleet(v.fleetNumber);
+              v.plans.forEach(p => {
+                p.anomaly = classifyKmAnomaly(v.km, p);
+              });
+            });
+            appState = parsed;
+            initializeAppUI();
+            showToast('Sessão anterior restaurada automaticamente.', 'info');
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao restaurar localStorage:', err);
+      }
+    });
+
+    function saveStateToStorage() {
+      try {
+        appState.lastUpdated = new Date().toISOString();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.warn('Não foi possível salvar no localStorage (limite de espaço):', err);
+      }
+    }
+
+    function clearStoredData() {
+      localStorage.removeItem(STORAGE_KEY);
+      appState = { fileName: '', lastUpdated: null, headerLines: [], globalRefDate: '', vehicles: [] };
+      selectedGarage = 'ALL';
+      selectedPlan = 'ALL';
+      expandedVehicles.clear();
+      closeModal('fileMenuModal');
+      document.getElementById('appContainer').classList.add('hidden');
+      document.getElementById('headerActions').classList.add('hidden');
+      document.getElementById('emptyState').classList.remove('hidden');
+      document.getElementById('headerSubtitle').textContent = 'Nenhuma base carregada';
+      showToast('Dados locais removidos.', 'info');
+    }
+
+    /**
+     * LEITURA DE ARQUIVO CSV (ISO-8859-1 / LATIN-1)
+     */
+    function triggerFileInput() {
+      const input = document.getElementById('csvFileInput');
+      input.value = '';
+      input.click();
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const text = e.target.result;
+          const parsedData = parseBlockCSV(text);
+
+          if (parsedData.vehicles.length === 0) {
+            showToast('Nenhum veículo encontrado no formato esperado.', 'error');
+            return;
+          }
+
+          appState = {
+            fileName: file.name,
+            lastUpdated: new Date().toISOString(),
+            headerLines: parsedData.headerLines,
+            globalRefDate: parsedData.globalRefDate,
+            vehicles: parsedData.vehicles
+          };
+
+          selectedGarage = 'ALL';
+          selectedPlan = 'ALL';
+          expandedVehicles.clear();
+          saveStateToStorage();
+          initializeAppUI();
+          showToast(`${appState.vehicles.length} carros importados com sucesso!`, 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('Erro ao processar o CSV: ' + err.message, 'error');
+        }
+      };
+
+      reader.onerror = function() {
+        showToast('Falha na leitura do arquivo.', 'error');
+      };
+
+      reader.readAsText(file, 'ISO-8859-1');
+    }
+
+    /**
+     * PARSER DO CSV EM BLOCOS
+     */
+    function parseBlockCSV(csvText) {
+      const rawLines = csvText.split(/\r?\n/);
+      const headerLines = [];
+      const vehicles = [];
+      let globalRefDate = '';
+      let currentVehicle = null;
+      let foundFirstVehicle = false;
+
+      const vehicleHeaderRegex = /^Veiculo:\s*([^\s(]+)\s*\(\s*Data:\s*([0-9/]+)\s*-\s*Km\s*(-?\d+)\s*-\s*Km Complementar\s*:\s*(-?\d+)\s*\)/i;
+
+      for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        const trimmed = line.trim();
+        const cleanLine = trimmed.replace(/^"+|"+$/g, '');
+
+        const vMatch = cleanLine.match(vehicleHeaderRegex) || trimmed.match(vehicleHeaderRegex);
+
+        if (vMatch) {
+          foundFirstVehicle = true;
+          const rawPrefix = vMatch[1].trim();
+          const fleetNumber = extractCleanFleetNumber(rawPrefix);
+          const garage = getGarageForFleet(fleetNumber);
+
+          currentVehicle = {
+            prefix: rawPrefix,          // Preservado intacto para exportação (ex: 077/435)
+            fleetNumber: fleetNumber,   // Exibição limpa na interface (ex: 435)
+            garage: garage,             // Bandeirantes | Vitorino | São Francisco | Sem Garagem
+            refDate: vMatch[2].trim(),
+            km: parseInt(vMatch[3], 10) || 0,
+            kmComp: parseInt(vMatch[4], 10) || 0,
+            tableHeader1: 'Manutenção Preventiva;;;Última Manutenção;;;;Rodado;;Diferença;;%;Observação;',
+            tableHeader2: 'Plano de Manutenção;Int. Km;Int. Dias;Data;Hodôm.;O.S.;Ofic.;Km;Dias;Km;Dias;Vencido;;',
+            plans: []
+          };
+          vehicles.push(currentVehicle);
+          continue;
+        }
+
+        if (!foundFirstVehicle) {
+          headerLines.push(line);
+          if (trimmed.includes('Data de Referência')) {
+            const cols = splitSemicolonCSV(trimmed);
+            if (cols[1]) globalRefDate = cols[1].trim();
+          }
+          continue;
+        }
+
+        if (!trimmed || !currentVehicle) continue;
+
+        if (trimmed.startsWith('Manutenção Preventiva') || trimmed.startsWith('"Manutenção Preventiva')) {
+          currentVehicle.tableHeader1 = line;
+          continue;
+        }
+        if (trimmed.startsWith('Plano de Manutenção') || trimmed.startsWith('"Plano de Manutenção')) {
+          currentVehicle.tableHeader2 = line;
+          continue;
+        }
+
+        const cols = splitSemicolonCSV(trimmed);
+        if (cols.length >= 12 && cols[0] && !cols[0].startsWith('Total')) {
+          const intKm = parseInt(cols[1], 10) || 0;
+          const intDias = parseInt(cols[2], 10) || 0;
+          const lastDate = (cols[3] || '').trim();
+          const lastHodom = parseInt(cols[4], 10) || 0;
+          const os = (cols[5] || '').trim();
+          const ofic = (cols[6] || '').trim();
+          const rodadoKm = parseInt(cols[7], 10) || 0;
+          const rodadoDias = parseInt(cols[8], 10) || 0;
+          const difKm = parseInt(cols[9], 10) || 0;
+          const difDias = parseInt(cols[10], 10) || 0;
+          const pctStr = (cols[11] || '0').trim();
+          const pct = parseFloat(pctStr.replace(',', '.')) || 0;
+          const obs = (cols[12] || '').trim();
+
+          const planObj = {
+            name: cols[0].trim(),
+            intKm,
+            intDias,
+            lastDate,
+            lastHodom,
+            os,
+            ofic,
+            rodadoKm,
+            rodadoDias,
+            difKm,
+            difDias,
+            pct,
+            obs,
+            statusType: classifyPlanStatus(obs, pct),
+            anomaly: null
+          };
+
+          planObj.anomaly = classifyKmAnomaly(currentVehicle.km, planObj);
+          currentVehicle.plans.push(planObj);
+        }
+      }
+
+      return { headerLines, globalRefDate, vehicles };
+    }
+
+    function splitSemicolonCSV(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ';' && !inQuotes) {
+          result.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current);
+      return result;
+    }
+
+    function classifyPlanStatus(obs, pct) {
+      const lower = (obs || '').toLowerCase();
+      if (lower.includes('vencido') || pct >= 0) {
+        return 'VENCIDO';
+      }
+      if (lower.includes('limite') || (pct >= -10 && pct < 0)) {
+        return 'LIMITE';
+      }
+      return 'EM_DIA';
+    }
+
+    /**
+     * INICIALIZA UI APÓS CARREGAR DADOS
+     */
+    function initializeAppUI() {
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('appContainer').classList.remove('hidden');
+      document.getElementById('headerActions').classList.remove('hidden');
+
+      const refText = appState.globalRefDate ? ` • Ref: ${appState.globalRefDate}` : '';
+      document.getElementById('headerSubtitle').textContent = `${appState.fileName || 'Base Ativa'}${refText}`;
+      document.getElementById('activeFileName').textContent = appState.fileName || 'Base em Memória';
+
+      renderGaragePills();
+      renderPlanFilterOptions();
+      renderOverduePlanPills();
+      updateDashboardStats();
+      applyFilters();
+    }
+
+    /**
+     * RENDERIZA OPÇÕES DO SELETOR DE PLANO DE MANUTENÇÃO (#planFilter)
+     */
+    function renderPlanFilterOptions() {
+      const planSelect = document.getElementById('planFilter');
+      if (!planSelect) return;
+
+      const targetVehicles = selectedGarage === 'ALL'
+        ? appState.vehicles
+        : appState.vehicles.filter(v => v.garage === selectedGarage);
+
+      const planStats = new Map();
+      targetVehicles.forEach(v => {
+        v.plans.forEach(p => {
+          if (!planStats.has(p.name)) {
+            planStats.set(p.name, { total: 0, vencidos: 0 });
+          }
+          const entry = planStats.get(p.name);
+          entry.total++;
+          if (p.statusType === 'VENCIDO') entry.vencidos++;
+        });
+      });
+
+      if (selectedPlan !== 'ALL' && !planStats.has(selectedPlan)) {
+        selectedPlan = 'ALL';
+      }
+
+      const sortedPlans = Array.from(planStats.entries()).sort((a, b) =>
+        a[0].localeCompare(b[0], 'pt-BR', { numeric: true })
+      );
+
+      planSelect.innerHTML = [
+        `<option value="ALL">Todos os Planos (${sortedPlans.length})</option>`,
+        ...sortedPlans.map(([name, stat]) => {
+          const vencLabel = stat.vencidos > 0 ? ` • ${stat.vencidos} venc.` : '';
+          return `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${stat.total}${vencLabel})</option>`;
+        })
+      ].join('');
+
+      planSelect.value = selectedPlan;
+    }
+
+    /**
+     * FORMATA RÓTULO CURTO DO PLANO PARA AS PÍLULAS HORIZONTAIS
+     * Ex: "017-REVISÃO ALTERNADOR" -> "017 • REVISÃO ALTERNADOR" (compacto)
+     */
+    function formatShortPlanLabel(planName) {
+      const parts = planName.split('-');
+      if (parts.length > 1) {
+        const code = parts[0].trim();
+        const desc = parts.slice(1).join('-').trim();
+        const shortDesc = desc.length > 24 ? desc.slice(0, 23).trim() + '…' : desc;
+        return `${code} · ${shortDesc}`;
+      }
+      return planName.length > 28 ? planName.slice(0, 27).trim() + '…' : planName;
+    }
+
+    /**
+     * RENDERIZA PÍLULAS HORIZONTAIS PARA ALTERNAR ENTRE OS PLANOS VENCIDOS DA GARAGEM ATIVA
+     */
+    function renderOverduePlanPills() {
+      const section = document.getElementById('overduePlansQuickSection');
+      const container = document.getElementById('overduePlansPillsContainer');
+      const badge = document.getElementById('activeOverduePlanBadge');
+      if (!section || !container) return;
+
+      const targetVehicles = selectedGarage === 'ALL'
+        ? appState.vehicles
+        : appState.vehicles.filter(v => v.garage === selectedGarage);
+
+      const overdueMap = new Map();
+      let totalOverdueRecords = 0;
+
+      targetVehicles.forEach(v => {
+        v.plans.forEach(p => {
+          if (p.statusType === 'VENCIDO') {
+            totalOverdueRecords++;
+            if (!overdueMap.has(p.name)) {
+              overdueMap.set(p.name, { count: 0, hasAnomaly: false });
+            }
+            const item = overdueMap.get(p.name);
+            item.count++;
+            if (p.anomaly) item.hasAnomaly = true;
+          }
+        });
+      });
+
+      // Ordena do maior volume de vencidos para o menor
+      const sortedOverdue = Array.from(overdueMap.entries()).sort((a, b) => {
+        if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+        return a[0].localeCompare(b[0], 'pt-BR', { numeric: true });
+      });
+
+      const isAllActive = selectedPlan === 'ALL';
+      const allBtnClass = isAllActive
+        ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+      const allBadgeClass = isAllActive
+        ? 'bg-white/20 text-white'
+        : 'bg-red-100 text-red-700';
+
+      let pillsHtml = `
+        <button
+          type="button"
+          onclick="toggleOverduePlanPill('ALL')"
+          class="shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition active:scale-[0.98] ${allBtnClass}"
+        >
+          <span>Todos os Planos</span>
+          <span class="px-1.5 py-0.5 rounded-md text-[11px] font-extrabold ${allBadgeClass}">${formatNumber(totalOverdueRecords)}</span>
+        </button>
+      `;
+
+      if (sortedOverdue.length === 0) {
+        pillsHtml += `<span class="text-xs text-emerald-700 font-semibold px-2">Nenhum plano vencido nesta garagem!</span>`;
+      } else {
+        pillsHtml += sortedOverdue.map(([planName, info]) => {
+          const isActive = selectedPlan === planName;
+          const shortLabel = formatShortPlanLabel(planName);
+
+          const btnClasses = isActive
+            ? 'bg-red-600 text-white border-red-600 shadow-xs'
+            : 'bg-red-50/70 text-red-900 border-red-200 hover:bg-red-100/80';
+
+          const countBadgeClasses = isActive
+            ? 'bg-white/25 text-white'
+            : 'bg-red-600 text-white';
+
+          return `
+            <button
+              type="button"
+              onclick="toggleOverduePlanPill(this.dataset.plan)"
+              data-plan="${escapeHtml(planName)}"
+              title="${escapeHtml(planName)} (${info.count} vencido${info.count > 1 ? 's' : ''})"
+              class="shrink-0 min-h-[38px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition active:scale-[0.98] ${btnClasses}"
+            >
+              <span>${escapeHtml(shortLabel)}</span>
+              <span class="px-1.5 py-0.5 rounded-md text-[11px] font-extrabold ${countBadgeClasses}">${info.count}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      container.innerHTML = pillsHtml;
+
+      if (selectedPlan === 'ALL') {
+        badge.textContent = `${sortedOverdue.length} plano(s) com vencidos`;
+        badge.className = 'text-[11px] font-semibold text-slate-500 shrink-0';
+      } else {
+        badge.textContent = formatShortPlanLabel(selectedPlan);
+        badge.className = 'text-[11px] font-bold text-red-700 shrink-0';
+      }
+    }
+
+    /**
+     * ALTERNA ENTRE OS PLANOS VENCIDOS PELAS PÍLULAS HORIZONTAIS
+     */
+    function toggleOverduePlanPill(planName) {
+      const statusSelect = document.getElementById('statusFilter');
+      const internalToggle = document.getElementById('onlyAlertPlansToggle');
+
+      // Clicar novamente na mesma pílula ativa volta para 'ALL'
+      if (planName === 'ALL' || selectedPlan === planName) {
+        selectedPlan = 'ALL';
+        if (statusSelect.value === 'VENCIDO') {
+          statusSelect.value = 'ALL';
+        }
+        syncStatCardsHighlight(statusSelect.value);
+      } else {
+        selectedPlan = planName;
+        // Mantém ESTOURADO/VIRADA/ZERADA/SEVERO se já estiver ativo, senão força VENCIDO
+        const keepStatuses = ['VENCIDO', 'ESTOURADO', 'VIRADA', 'ZERADA', 'SEVERO'];
+        if (!keepStatuses.includes(statusSelect.value)) {
+          statusSelect.value = 'VENCIDO';
+        }
+        syncStatCardsHighlight(statusSelect.value);
+        internalToggle.checked = true;
+      }
+
+      const planSelect = document.getElementById('planFilter');
+      if (planSelect) planSelect.value = selectedPlan;
+
+      renderOverduePlanPills();
+      applyFilters();
+    }
+
+    /**
+     * SINCRONIZA QUANDO O USUÁRIO ESCOLHE UM PLANO PELO DROPDOWN #planFilter
+     */
+    function selectPlanFromDropdown(planName) {
+      selectedPlan = planName;
+      if (planName !== 'ALL') {
+        document.getElementById('onlyAlertPlansToggle').checked = true;
+      }
+      renderOverduePlanPills();
+      applyFilters();
+    }
+
+    function onStatusFilterChange() {
+      const status = document.getElementById('statusFilter').value;
+      syncStatCardsHighlight(status);
+      document.getElementById('onlyAlertPlansToggle').checked =
+        ['VENCIDO', 'ESTOURADO', 'VIRADA', 'ZERADA', 'SEVERO', 'LIMITE'].includes(status) || selectedPlan !== 'ALL';
+      applyFilters();
+    }
+
+    function syncStatCardsHighlight(status) {
+      document.querySelectorAll('.stat-card').forEach(el => {
+        el.classList.remove('border-brand-600', 'border-red-500', 'border-purple-600', 'border-amber-500', 'border-emerald-500');
+        el.classList.add('border-transparent');
+      });
+
+      const map = {
+        'ALL': ['cardStatAll', 'border-brand-600'],
+        'VENCIDO': ['cardStatVencido', 'border-red-500'],
+        'ESTOURADO': ['cardStatEstourado', 'border-purple-600'],
+        'LIMITE': ['cardStatLimite', 'border-amber-500'],
+        'EM_DIA': ['cardStatEmDia', 'border-emerald-500']
+      };
+      if (map[status]) {
+        const card = document.getElementById(map[status][0]);
+        card.classList.remove('border-transparent');
+        card.classList.add(map[status][1]);
+      }
+    }
+
+    function resetAllFilters() {
+      selectedGarage = 'ALL';
+      selectedPlan = 'ALL';
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      document.getElementById('statusFilter').value = 'ALL';
+      document.getElementById('sortSelect').value = 'FLEET_ASC';
+      document.getElementById('onlyAlertPlansToggle').checked = false;
+      syncStatCardsHighlight('ALL');
+
+      renderGaragePills();
+      renderPlanFilterOptions();
+      renderOverduePlanPills();
+      updateDashboardStats();
+      applyFilters();
+    }
+
+    /**
+     * RENDERIZA PÍLULAS E SINCRONIZA SELECT DE FILTRO POR GARAGEM COM CONTAGEM E VENCIDOS
+     */
+    function renderGaragePills() {
+      const container = document.getElementById('garagePillsContainer');
+      const garageSelect = document.getElementById('garageSelect');
+      const garages = ['ALL', 'Bandeirantes', 'Vitorino', 'São Francisco', 'Sem Garagem'];
+
+      const counts = {
+        'ALL': appState.vehicles.length,
+        'Bandeirantes': 0,
+        'Vitorino': 0,
+        'São Francisco': 0,
+        'Sem Garagem': 0
+      };
+
+      const vencidosByGarage = {
+        'ALL': 0,
+        'Bandeirantes': 0,
+        'Vitorino': 0,
+        'São Francisco': 0,
+        'Sem Garagem': 0
+      };
+
+      appState.vehicles.forEach(v => {
+        counts[v.garage] = (counts[v.garage] || 0) + 1;
+        const hasVencido = v.plans.some(p => p.statusType === 'VENCIDO');
+        if (hasVencido) {
+          vencidosByGarage['ALL']++;
+          vencidosByGarage[v.garage] = (vencidosByGarage[v.garage] || 0) + 1;
+        }
+      });
+
+      // Atualiza opções e valor selecionado no <select> de Garagem
+      if (garageSelect) {
+        garageSelect.innerHTML = garages.map(g => {
+          const count = counts[g] || 0;
+          if (g === 'Sem Garagem' && count === 0) return '';
+          const label = g === 'ALL' ? 'Todas as Garagens' : g;
+          const vencInfo = vencidosByGarage[g] > 0 ? ` • ${vencidosByGarage[g]} venc.` : '';
+          return `<option value="${g}">${escapeHtml(label)} (${count}${vencInfo})</option>`;
+        }).join('');
+        garageSelect.value = selectedGarage;
+      }
+
+      container.innerHTML = garages.map(g => {
+        const isActive = selectedGarage === g;
+        const label = g === 'ALL' ? 'Todas' : g;
+        const count = counts[g] || 0;
+        const vencCount = vencidosByGarage[g] || 0;
+
+        // Oculta 'Sem Garagem' se não houver nenhum carro nessa categoria
+        if (g === 'Sem Garagem' && count === 0) return '';
+
+        const activeClasses = isActive
+          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100';
+
+        const badgeClasses = isActive
+          ? 'bg-white/20 text-white'
+          : 'bg-slate-200/80 text-slate-600';
+
+        const vencBadgeHtml = vencCount > 0
+          ? `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold ${isActive ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'}" title="${vencCount} carro(s) com planos vencidos">${vencCount} venc.</span>`
+          : '';
+
+        return `
+          <button
+            type="button"
+            onclick="selectGarage('${g}')"
+            class="shrink-0 min-h-[40px] px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition active:scale-[0.98] ${activeClasses}"
+          >
+            <span>${escapeHtml(label)}</span>
+            <span class="px-1.5 py-0.5 rounded-md text-[11px] font-extrabold ${badgeClasses}">${count}</span>
+            ${vencBadgeHtml}
+          </button>
+        `;
+      }).join('');
+
+      document.getElementById('activeGarageBadge').textContent =
+        selectedGarage === 'ALL' ? 'Todas as garagens' : `Garagem: ${selectedGarage}`;
+    }
+
+    function selectGarage(garage) {
+      selectedGarage = garage;
+      renderGaragePills();
+      renderPlanFilterOptions();
+      renderOverduePlanPills();
+      updateDashboardStats();
+      applyFilters();
+    }
+
+    /**
+     * ATUALIZA CONTADORES DO DASHBOARD (RESPEITANDO A GARAGEM SELECIONADA)
+     */
+    function updateDashboardStats() {
+      const targetVehicles = selectedGarage === 'ALL'
+        ? appState.vehicles
+        : appState.vehicles.filter(v => v.garage === selectedGarage);
+
+      let totalPlans = 0;
+      let vencidos = 0;
+      let estourados = 0;
+      let limites = 0;
+      let emDia = 0;
+      let vehiclesWithVencido = 0;
+      let vehiclesWithEstourado = 0;
+
+      targetVehicles.forEach(v => {
+        let hasVencido = false;
+        let hasEstourado = false;
+
+        v.plans.forEach(p => {
+          totalPlans++;
+          if (p.statusType === 'VENCIDO') {
+            vencidos++;
+            hasVencido = true;
+          } else if (p.statusType === 'LIMITE') {
+            limites++;
+          } else {
+            emDia++;
+          }
+
+          if (p.anomaly) {
+            estourados++;
+            hasEstourado = true;
+          }
+        });
+
+        if (hasVencido) vehiclesWithVencido++;
+        if (hasEstourado) vehiclesWithEstourado++;
+      });
+
+      document.getElementById('statTotalVehicles').textContent = formatNumber(targetVehicles.length);
+      document.getElementById('statTotalPlans').textContent = `${formatNumber(totalPlans)} planos`;
+      document.getElementById('statVencidos').textContent = formatNumber(vencidos);
+      document.getElementById('statVehiclesVencidos').textContent = `em ${formatNumber(vehiclesWithVencido)} carros`;
+      document.getElementById('statEstourados').textContent = formatNumber(estourados);
+      document.getElementById('statVehiclesEstourados').textContent = `em ${formatNumber(vehiclesWithEstourado)} carros`;
+      document.getElementById('statLimites').textContent = formatNumber(limites);
+      document.getElementById('statEmDia').textContent = formatNumber(emDia);
+    }
+
+    /**
+     * FILTRAGEM, BUSCA E ORDENAÇÃO
+     */
+    function setQuickStatusFilter(status) {
+      document.getElementById('statusFilter').value = status;
+      syncStatCardsHighlight(status);
+
+      document.getElementById('onlyAlertPlansToggle').checked =
+        ['VENCIDO', 'ESTOURADO', 'VIRADA', 'ZERADA', 'SEVERO', 'LIMITE'].includes(status) || selectedPlan !== 'ALL';
+      applyFilters();
+    }
+
+    function debouncedFilter() {
+      const val = document.getElementById('searchInput').value;
+      document.getElementById('clearSearchBtn').classList.toggle('hidden', val.length === 0);
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(applyFilters, 180);
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const status = document.getElementById('statusFilter').value;
+      const sortBy = document.getElementById('sortSelect').value;
+
+      const matchedIndices = [];
+
+      appState.vehicles.forEach((v, idx) => {
+        if (selectedGarage !== 'ALL' && v.garage !== selectedGarage) return;
+
+        // Se houver um plano selecionado, avalia os status considerando aquele plano específico
+        const scopedPlans = selectedPlan === 'ALL'
+          ? v.plans
+          : v.plans.filter(p => p.name === selectedPlan);
+
+        if (selectedPlan !== 'ALL' && scopedPlans.length === 0) return;
+
+        const vencidosCount = scopedPlans.filter(p => p.statusType === 'VENCIDO').length;
+        const limitesCount = scopedPlans.filter(p => p.statusType === 'LIMITE').length;
+        const estouradosCount = scopedPlans.filter(p => p.anomaly !== null).length;
+
+        if (status === 'VENCIDO' && vencidosCount === 0) return;
+        if (status === 'ESTOURADO' && estouradosCount === 0) return;
+        if (status === 'VIRADA' && !scopedPlans.some(p => p.anomaly?.type === 'VIRADA')) return;
+        if (status === 'ZERADA' && !scopedPlans.some(p => p.anomaly?.type === 'ZERADA')) return;
+        if (status === 'SEVERO' && !scopedPlans.some(p => p.anomaly?.type === 'SEVERO')) return;
+        if (status === 'LIMITE' && limitesCount === 0) return;
+        if (status === 'ALERTAS' && (vencidosCount + limitesCount) === 0) return;
+        if (status === 'EM_DIA' && (vencidosCount + limitesCount) > 0) return;
+
+        if (query) {
+          const matchFleet = v.fleetNumber.toLowerCase().includes(query) || v.prefix.toLowerCase().includes(query);
+          const matchPlan = scopedPlans.some(p => p.name.toLowerCase().includes(query));
+          if (!matchFleet && !matchPlan) return;
+        }
+
+        matchedIndices.push(idx);
+      });
+
+      // Ordenação
+      matchedIndices.sort((idxA, idxB) => {
+        const a = appState.vehicles[idxA];
+        const b = appState.vehicles[idxB];
+        const plansA = selectedPlan === 'ALL' ? a.plans : a.plans.filter(p => p.name === selectedPlan);
+        const plansB = selectedPlan === 'ALL' ? b.plans : b.plans.filter(p => p.name === selectedPlan);
+
+        if (sortBy === 'VENCIDOS_DESC') {
+          const vA = plansA.filter(p => p.statusType === 'VENCIDO').length;
+          const vB = plansB.filter(p => p.statusType === 'VENCIDO').length;
+          if (vB !== vA) return vB - vA;
+        } else if (sortBy === 'ESTOURO_DESC') {
+          const maxDifA = Math.max(0, ...plansA.map(p => p.difKm));
+          const maxDifB = Math.max(0, ...plansB.map(p => p.difKm));
+          if (maxDifB !== maxDifA) return maxDifB - maxDifA;
+        } else if (sortBy === 'KM_DESC') {
+          if (b.km !== a.km) return b.km - a.km;
+        }
+
+        // Ordenação padrão: Nº Frota (Crescente) com ordenação natural numérica
+        return a.fleetNumber.localeCompare(b.fleetNumber, 'pt-BR', { numeric: true });
+      });
+
+      filteredVehicleIndices = matchedIndices;
+
+      const totalScope = selectedGarage === 'ALL'
+        ? appState.vehicles.length
+        : appState.vehicles.filter(v => v.garage === selectedGarage).length;
+
+      document.getElementById('resultsCount').textContent =
+        `Mostrando ${formatNumber(filteredVehicleIndices.length)} de ${formatNumber(totalScope)} carros`;
+
+      const hasAnyFilter = selectedGarage !== 'ALL' || selectedPlan !== 'ALL' || status !== 'ALL' || query.length > 0;
+      document.getElementById('resetAllFiltersBtn').classList.toggle('hidden', !hasAnyFilter);
+
+      renderVehicleList(true);
+    }
+
+    /**
+     * RENDERIZAÇÃO DA LISTA DE VEÍCULOS (COM PAGINAÇÃO LEVE)
+     */
+    function renderVehicleList(reset = false) {
+      const container = document.getElementById('vehicleList');
+      if (reset) {
+        container.innerHTML = '';
+        renderedCount = 0;
+      }
+
+      if (filteredVehicleIndices.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
+            <p class="text-slate-600 font-semibold">Nenhum carro encontrado para este filtro.</p>
+            <p class="text-xs text-slate-400 mt-1">Tente limpar a busca ou alterar a garagem/situação.</p>
+          </div>
+        `;
+        document.getElementById('loadMoreContainer').classList.add('hidden');
+        return;
+      }
+
+      const nextBatch = filteredVehicleIndices.slice(renderedCount, renderedCount + PAGE_SIZE);
+      const fragment = document.createDocumentFragment();
+
+      nextBatch.forEach(vehicleIdx => {
+        const card = createVehicleCardElement(vehicleIdx);
+        fragment.appendChild(card);
+      });
+
+      container.appendChild(fragment);
+      renderedCount += nextBatch.length;
+
+      const remaining = filteredVehicleIndices.length - renderedCount;
+      const loadMoreBox = document.getElementById('loadMoreContainer');
+      if (remaining > 0) {
+        document.getElementById('remainingCount').textContent = formatNumber(remaining);
+        loadMoreBox.classList.remove('hidden');
+      } else {
+        loadMoreBox.classList.add('hidden');
+      }
+    }
+
+    function loadMoreVehicles() {
+      renderVehicleList(false);
+    }
+
+    function getGarageBadgeStyle(garage) {
+      switch (garage) {
+        case 'Bandeirantes':
+          return 'bg-sky-50 text-sky-700 border-sky-200';
+        case 'Vitorino':
+          return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+        case 'São Francisco':
+          return 'bg-teal-50 text-teal-700 border-teal-200';
+        default:
+          return 'bg-slate-100 text-slate-600 border-slate-200';
+      }
+    }
+
+    function createVehicleCardElement(vehicleIdx) {
+      const v = appState.vehicles[vehicleIdx];
+      const vencidosCount = v.plans.filter(p => p.statusType === 'VENCIDO').length;
+      const limitesCount = v.plans.filter(p => p.statusType === 'LIMITE').length;
+      const anomalies = v.plans.filter(p => p.anomaly !== null);
+      const isExpanded = expandedVehicles.has(vehicleIdx);
+
+      const card = document.createElement('article');
+      card.id = `vehicle-card-${vehicleIdx}`;
+      card.className = `bg-white rounded-2xl shadow-xs border transition overflow-hidden ${
+        anomalies.length > 0 ? 'border-purple-300' : (vencidosCount > 0 ? 'border-red-200' : (limitesCount > 0 ? 'border-amber-200' : 'border-slate-200'))
+      }`;
+
+      // Badges de status do veículo
+      let badgesHtml = '';
+      if (vencidosCount > 0) {
+        badgesHtml += `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold bg-red-100 text-red-700">${vencidosCount} Vencido${vencidosCount > 1 ? 's' : ''}</span>`;
+      }
+      if (anomalies.length > 0) {
+        badgesHtml += `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold bg-purple-100 text-purple-800">⚠️ ${anomalies.length} KM Estourado</span>`;
+      }
+      if (limitesCount > 0) {
+        badgesHtml += `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800">${limitesCount} Limite</span>`;
+      }
+      if (vencidosCount === 0 && limitesCount === 0 && anomalies.length === 0) {
+        badgesHtml += `<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-100 text-emerald-700">Em dia</span>`;
+      }
+
+      const garageBadgeClass = getGarageBadgeStyle(v.garage);
+
+      card.innerHTML = `
+        <div class="p-4 flex items-center justify-between gap-3 cursor-pointer select-none active:bg-slate-50" onclick="toggleVehicleExpand(${vehicleIdx})">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">${escapeHtml(v.fleetNumber)}</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${garageBadgeClass}">${escapeHtml(v.garage)}</span>
+              ${badgesHtml}
+            </div>
+            <div class="mt-1.5 flex items-center gap-2.5 text-xs text-slate-500 font-medium flex-wrap">
+              <span class="inline-flex items-center gap-1 text-slate-800 font-bold">
+                <svg class="w-3.5 h-3.5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                ${formatNumber(v.km)} km
+              </span>
+              <span>•</span>
+              <span>Data: ${escapeHtml(v.refDate)}</span>
+              <span>•</span>
+              <span>${v.plans.length} planos</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onclick="event.stopPropagation(); openKmModal(${vehicleIdx})"
+              class="min-h-[42px] px-3 py-2 bg-brand-50 hover:bg-brand-100 active:bg-brand-200 text-brand-700 font-bold text-xs rounded-xl border border-brand-200 transition"
+              title="Atualizar KM do carro"
+            >
+              Atualizar KM
+            </button>
+            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div id="vehicle-plans-${vehicleIdx}" class="${isExpanded ? '' : 'hidden'} border-t border-slate-100 bg-slate-50/70 p-3 sm:p-4 space-y-2.5">
+          ${isExpanded ? renderVehiclePlansHtml(vehicleIdx) : ''}
+        </div>
+      `;
+
+      return card;
+    }
+
+    function toggleVehicleExpand(vehicleIdx) {
+      const plansContainer = document.getElementById(`vehicle-plans-${vehicleIdx}`);
+      const card = document.getElementById(`vehicle-card-${vehicleIdx}`);
+      const arrow = card.querySelector('.rotate-180, svg.w-4.h-4')?.parentElement;
+
+      if (expandedVehicles.has(vehicleIdx)) {
+        expandedVehicles.delete(vehicleIdx);
+        plansContainer.classList.add('hidden');
+        if (arrow) arrow.classList.remove('rotate-180');
+      } else {
+        expandedVehicles.add(vehicleIdx);
+        plansContainer.innerHTML = renderVehiclePlansHtml(vehicleIdx);
+        plansContainer.classList.remove('hidden');
+        if (arrow) arrow.classList.add('rotate-180');
+      }
+    }
+
+    function renderVehiclePlansHtml(vehicleIdx) {
+      const v = appState.vehicles[vehicleIdx];
+      const onlyAlertPlans = document.getElementById('onlyAlertPlansToggle').checked;
+      const statusFilter = document.getElementById('statusFilter').value;
+      const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+
+      // Ordena planos: Plano selecionado primeiro, depois Anomalias e Vencidos, Limite e Em dia
+      const indexedPlans = v.plans.map((p, idx) => ({ p, idx }));
+      indexedPlans.sort((a, b) => {
+        if (selectedPlan !== 'ALL') {
+          if (a.p.name === selectedPlan && b.p.name !== selectedPlan) return -1;
+          if (b.p.name === selectedPlan && a.p.name !== selectedPlan) return 1;
+        }
+        const scoreA = a.p.anomaly ? -1 : (a.p.statusType === 'VENCIDO' ? 0 : (a.p.statusType === 'LIMITE' ? 1 : 2));
+        const scoreB = b.p.anomaly ? -1 : (b.p.statusType === 'VENCIDO' ? 0 : (b.p.statusType === 'LIMITE' ? 1 : 2));
+        return scoreA - scoreB;
+      });
+
+      const visiblePlans = indexedPlans.filter(({ p }) => {
+        if (selectedPlan !== 'ALL' && onlyAlertPlans && p.name !== selectedPlan) {
+          return false;
+        }
+        const matchesFleetSearch = v.fleetNumber.toLowerCase().includes(searchQuery) || v.prefix.toLowerCase().includes(searchQuery);
+        if (searchQuery && !matchesFleetSearch && !p.name.toLowerCase().includes(searchQuery)) {
+          return false;
+        }
+        if (onlyAlertPlans) {
+          if (statusFilter === 'VENCIDO') return p.statusType === 'VENCIDO';
+          if (statusFilter === 'ESTOURADO') return p.anomaly !== null;
+          if (statusFilter === 'VIRADA') return p.anomaly?.type === 'VIRADA';
+          if (statusFilter === 'ZERADA') return p.anomaly?.type === 'ZERADA';
+          if (statusFilter === 'SEVERO') return p.anomaly?.type === 'SEVERO';
+          if (statusFilter === 'LIMITE') return p.statusType === 'LIMITE';
+          return p.statusType !== 'EM_DIA' || p.anomaly !== null;
+        }
+        return true;
+      });
+
+      if (visiblePlans.length === 0) {
+        return `<p class="text-xs text-slate-500 text-center py-3">Nenhum plano correspondente ao filtro interno.</p>`;
+      }
+
+      return visiblePlans.map(({ p, idx }) => {
+        const consumedPct = Math.max(0, Math.min(100, Math.round(100 + p.pct)));
+
+        let barColor = 'bg-emerald-500';
+        let badgeStyle = 'bg-emerald-100 text-emerald-800';
+        let statusLabel = 'Em dia';
+
+        if (p.statusType === 'VENCIDO') {
+          barColor = p.anomaly ? 'bg-purple-600' : 'bg-red-600';
+          badgeStyle = 'bg-red-100 text-red-700';
+          statusLabel = p.obs || 'Vencido';
+        } else if (p.statusType === 'LIMITE') {
+          barColor = 'bg-amber-500';
+          badgeStyle = 'bg-amber-100 text-amber-800';
+          statusLabel = p.obs || 'No limite';
+        }
+
+        const intervalText = p.intKm > 0
+          ? `Int: ${formatNumber(p.intKm)} km`
+          : (p.intDias > 0 ? `Int: ${p.intDias} dias` : 'Sem intervalo');
+
+        const remainingText = p.intKm > 0
+          ? (p.difKm >= 0 ? `Excedeu ${formatNumber(p.difKm)} km` : `Restam ${formatNumber(Math.abs(p.difKm))} km`)
+          : (p.intDias > 0 ? (p.difDias >= 0 ? `Excedeu ${p.difDias} dias` : `Restam ${Math.abs(p.difDias)} dias`) : '');
+
+        const anomalyBanner = p.anomaly ? `
+          <div class="bg-purple-50 border border-purple-200 rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-purple-800">⚠️ ${escapeHtml(p.anomaly.label)}</span>
+            <span class="text-[10px] font-semibold text-purple-600">Atual: ${formatNumber(v.km)} | Últ: ${formatNumber(p.lastHodom)}</span>
+          </div>
+        ` : '';
+
+        const actionBtnClass = p.anomaly
+          ? 'bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white'
+          : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white';
+
+        const actionBtnLabel = p.anomaly ? 'Corrigir Hodômetro' : 'Dar Baixa';
+
+        return `
+          <div class="bg-white p-3.5 rounded-xl border ${p.anomaly ? 'border-purple-200' : 'border-slate-200'} shadow-2xs space-y-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h4 class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">${escapeHtml(p.name)}</h4>
+                <div class="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                  <span>${intervalText}</span>
+                  <span>•</span>
+                  <span class="font-semibold ${p.statusType === 'VENCIDO' ? 'text-red-600' : 'text-slate-700'}">${remainingText}</span>
+                </div>
+              </div>
+              <span class="shrink-0 px-2 py-0.5 rounded-md text-[11px] font-bold ${badgeStyle}">
+                ${escapeHtml(statusLabel)}
+              </span>
+            </div>
+
+            ${anomalyBanner}
+
+            <!-- Barra de Progresso do Plano -->
+            <div>
+              <div class="flex justify-between text-[11px] font-semibold text-slate-500 mb-1">
+                <span>Rodado: ${formatNumber(p.rodadoKm)} km / ${p.rodadoDias} d</span>
+                <span>${p.pct.toFixed(1).replace('.', ',')}%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full ${barColor} rounded-full transition-all duration-300" style="width: ${consumedPct}%"></div>
+              </div>
+            </div>
+
+            <!-- Metadados da Última Execução + Botão Ação -->
+            <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+              <div class="truncate">
+                Última: <strong class="text-slate-700">${escapeHtml(p.lastDate || '-')}</strong>
+                ${p.lastHodom !== null ? `(${formatNumber(p.lastHodom)} km)` : ''}
+                ${p.os ? `• O.S. ${escapeHtml(p.os)}` : ''}
+              </div>
+              <button
+                type="button"
+                onclick="openBaixaModal(${vehicleIdx}, ${idx})"
+                class="shrink-0 min-h-[36px] px-3 py-1.5 font-bold text-xs rounded-lg transition ${actionBtnClass}"
+              >
+                ${actionBtnLabel}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * MODAL E RECÁLCULO DE KM DO VEÍCULO
+     */
+    function openKmModal(vehicleIdx) {
+      const v = appState.vehicles[vehicleIdx];
+      document.getElementById('kmModalVehicleIdx').value = vehicleIdx;
+      document.getElementById('kmModalTitle').textContent = `Carro ${v.fleetNumber} (${v.garage})`;
+      document.getElementById('kmModalOldKm').textContent = `${formatNumber(v.km)} km`;
+      document.getElementById('kmModalRefDate').textContent = v.refDate;
+      document.getElementById('kmModalInput').value = v.km;
+      document.getElementById('kmModalDateInput').value = brDateToIso(v.refDate) || todayIsoDate();
+      document.getElementById('kmModalWarning').classList.add('hidden');
+
+      document.getElementById('kmModal').classList.remove('hidden');
+      setTimeout(() => document.getElementById('kmModalInput').focus(), 100);
+    }
+
+    function validateKmInput() {
+      const vehicleIdx = parseInt(document.getElementById('kmModalVehicleIdx').value, 10);
+      const v = appState.vehicles[vehicleIdx];
+      const newKm = parseInt(document.getElementById('kmModalInput').value, 10);
+      const warning = document.getElementById('kmModalWarning');
+
+      if (!isNaN(newKm) && newKm < v.km) {
+        warning.classList.remove('hidden');
+      } else {
+        warning.classList.add('hidden');
+      }
+    }
+
+    function saveVehicleKm(event) {
+      event.preventDefault();
+      const vehicleIdx = parseInt(document.getElementById('kmModalVehicleIdx').value, 10);
+      const newKm = parseInt(document.getElementById('kmModalInput').value, 10);
+      const newDateIso = document.getElementById('kmModalDateInput').value;
+
+      if (isNaN(newKm) || newKm < 0) {
+        showToast('Informe uma quilometragem válida.', 'error');
+        return;
+      }
+
+      const v = appState.vehicles[vehicleIdx];
+      v.km = newKm;
+      if (newDateIso) {
+        v.refDate = isoDateToBr(newDateIso);
+      }
+
+      recalculateVehiclePlans(v);
+
+      saveStateToStorage();
+      renderGaragePills();
+      renderPlanFilterOptions();
+      renderOverduePlanPills();
+      updateDashboardStats();
+      applyFilters();
+      closeModal('kmModal');
+      showToast(`KM do carro ${v.fleetNumber} atualizado para ${formatNumber(newKm)} km!`, 'success');
+    }
+
+    /**
+     * RECÁLCULO AUTOMÁTICO DE TODOS OS PLANOS DE UM VEÍCULO
+     */
+    function recalculateVehiclePlans(vehicle) {
+      const refDateObj = parseBrDate(vehicle.refDate);
+
+      vehicle.plans.forEach(p => {
+        // Preserva comportamento de virada se km_atual < lastHodom ou calcula diferença direta
+        if (vehicle.km < p.lastHodom) {
+          p.rodadoKm = (1000000 - p.lastHodom) + vehicle.km;
+        } else {
+          p.rodadoKm = Math.max(0, vehicle.km - p.lastHodom);
+        }
+
+        const lastDateObj = parseBrDate(p.lastDate);
+        if (refDateObj && lastDateObj) {
+          const diffMs = refDateObj.getTime() - lastDateObj.getTime();
+          p.rodadoDias = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+        }
+
+        if (p.intKm > 0) {
+          p.difKm = p.rodadoKm - p.intKm;
+          p.pct = Number(((p.difKm / p.intKm) * 100).toFixed(2));
+        } else if (p.intDias > 0) {
+          p.difDias = p.rodadoDias - p.intDias;
+          p.pct = Number(((p.difDias / p.intDias) * 100).toFixed(2));
+        } else {
+          p.difKm = 0;
+          p.difDias = 0;
+          p.pct = -100;
+        }
+
+        if (p.pct >= 0) {
+          p.obs = 'Vencido';
+          p.statusType = 'VENCIDO';
+        } else if (p.pct >= -10 && p.pct < 0) {
+          p.obs = 'Atingiu o limite inferior';
+          p.statusType = 'LIMITE';
+        } else {
+          p.obs = '';
+          p.statusType = 'EM_DIA';
+        }
+
+        p.anomaly = classifyKmAnomaly(vehicle.km, p);
+      });
+    }
+
+    /**
+     * MODAL E REGISTRO DE BAIXA / CORREÇÃO DE HODÔMETRO
+     */
+    function openBaixaModal(vehicleIdx, planIdx) {
+      const v = appState.vehicles[vehicleIdx];
+      const p = v.plans[planIdx];
+
+      document.getElementById('baixaVehicleIdx').value = vehicleIdx;
+      document.getElementById('baixaPlanIdx').value = planIdx;
+      document.getElementById('baixaModalTitle').textContent = p.name;
+      document.getElementById('baixaModalSub').textContent = `Carro ${v.fleetNumber} (${v.garage}) • KM Atual: ${formatNumber(v.km)}`;
+
+      const header = document.getElementById('baixaModalHeader');
+      const badge = document.getElementById('baixaModalBadge');
+      const submitBtn = document.getElementById('baixaSubmitBtn');
+      const anomalyAlert = document.getElementById('baixaAnomalyAlert');
+      const anomalyText = document.getElementById('baixaAnomalyText');
+
+      if (p.anomaly) {
+        header.className = 'px-5 py-4 bg-purple-800 text-white flex items-center justify-between';
+        badge.textContent = 'Correção de Hodômetro Base';
+        badge.className = 'text-[11px] uppercase tracking-wider text-purple-200 font-bold';
+        submitBtn.className = 'flex-2 min-h-[48px] px-6 py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold text-sm rounded-2xl shadow-md transition';
+        submitBtn.textContent = 'Corrigir Hodômetro';
+
+        anomalyAlert.classList.remove('hidden');
+        anomalyText.textContent = `${p.anomaly.label}. O hodômetro base será ajustado para o KM atual (${formatNumber(v.km)} km) ou outro valor que você informar abaixo.`;
+      } else {
+        header.className = 'px-5 py-4 bg-emerald-700 text-white flex items-center justify-between';
+        badge.textContent = 'Registrar Preventiva';
+        badge.className = 'text-[11px] uppercase tracking-wider text-emerald-200 font-bold';
+        submitBtn.className = 'flex-2 min-h-[48px] px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl shadow-md transition';
+        submitBtn.textContent = 'Confirmar Baixa';
+
+        anomalyAlert.classList.add('hidden');
+      }
+
+      document.getElementById('baixaDateInput').value = brDateToIso(v.refDate) || todayIsoDate();
+      document.getElementById('baixaKmInput').value = v.km;
+      document.getElementById('baixaOsInput').value = p.anomaly ? (p.os || '') : '';
+      document.getElementById('baixaOficInput').value = p.ofic || '';
+
+      document.getElementById('baixaModal').classList.remove('hidden');
+    }
+
+    function savePlanBaixa(event) {
+      event.preventDefault();
+      const vehicleIdx = parseInt(document.getElementById('baixaVehicleIdx').value, 10);
+      const planIdx = parseInt(document.getElementById('baixaPlanIdx').value, 10);
+
+      const dateIso = document.getElementById('baixaDateInput').value;
+      const execKm = parseInt(document.getElementById('baixaKmInput').value, 10);
+      const osVal = document.getElementById('baixaOsInput').value.trim();
+      const oficVal = document.getElementById('baixaOficInput').value.trim();
+
+      if (isNaN(execKm) || execKm < 0) {
+        showToast('Informe um hodômetro válido.', 'error');
+        return;
+      }
+
+      const v = appState.vehicles[vehicleIdx];
+      const p = v.plans[planIdx];
+      const brDate = isoDateToBr(dateIso);
+
+      p.lastDate = brDate;
+      p.lastHodom = execKm;
+      if (osVal) p.os = osVal;
+      if (oficVal) p.ofic = oficVal;
+
+      if (execKm > v.km) {
+        v.km = execKm;
+        v.refDate = brDate;
+        recalculateVehiclePlans(v);
+      } else {
+        p.rodadoKm = Math.max(0, v.km - execKm);
+        p.rodadoDias = 0;
+        if (p.intKm > 0) {
+          p.difKm = p.rodadoKm - p.intKm;
+          p.pct = Number(((p.difKm / p.intKm) * 100).toFixed(2));
+        } else if (p.intDias > 0) {
+          p.difDias = -p.intDias;
+          p.pct = -100;
+        } else {
+          p.difKm = 0;
+          p.pct = -100;
+        }
+
+        if (p.pct >= 0) {
+          p.obs = 'Vencido';
+          p.statusType = 'VENCIDO';
+        } else if (p.pct >= -10) {
+          p.obs = 'Atingiu o limite inferior';
+          p.statusType = 'LIMITE';
+        } else {
+          p.obs = '';
+          p.statusType = 'EM_DIA';
+        }
+
+        p.anomaly = classifyKmAnomaly(v.km, p);
+      }
+
+      saveStateToStorage();
+      renderGaragePills();
+      renderPlanFilterOptions();
+      renderOverduePlanPills();
+      updateDashboardStats();
+      applyFilters();
+      closeModal('baixaModal');
+      showToast(`Hodômetro/Baixa atualizado em "${p.name}"!`, 'success');
+    }
+
+    /**
+     * EXPORTAÇÃO DE CSV (BLOCOS ISO-8859-1 OU TABELA PLANA UTF-8)
+     */
+    function openExportModal() {
+      document.getElementById('exportModal').classList.remove('hidden');
+    }
+
+    function openFileMenuModal() {
+      document.getElementById('fileMenuModal').classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function exportCSV(mode) {
+      if (!appState.vehicles.length) return;
+
+      const lines = [];
+      const dateSuffix = new Date().toISOString().slice(0, 10);
+
+      if (mode === 'BLOCKS') {
+        // Reconstrói exatamente o formato original em blocos usando v.prefix (ex: 027/001, 077/435)
+        if (appState.headerLines && appState.headerLines.length > 0) {
+          appState.headerLines.forEach(l => lines.push(l));
+        } else {
+          lines.push(`"Data de Referência:";"${appState.globalRefDate || isoDateToBr(dateSuffix)}"`);
+        }
+
+        appState.vehicles.forEach(v => {
+          lines.push(`"Veiculo: ${v.prefix} ( Data:${v.refDate} - Km ${v.km} - Km Complementar : ${v.kmComp})"`);
+          lines.push(v.tableHeader1);
+          lines.push(v.tableHeader2);
+
+          v.plans.forEach(p => {
+            const pctFormatted = p.pct.toFixed(2).replace('.', ',');
+            const obsFormatted = p.obs ? p.obs : '  ';
+            const row = [
+              `"${p.name}"`,
+              `"${p.intKm}"`,
+              `"${p.intDias}"`,
+              `"${p.lastDate}"`,
+              `"${p.lastHodom}"`,
+              `"${p.os}"`,
+              `"${p.ofic}"`,
+              `"${p.rodadoKm}"`,
+              `"${p.rodadoDias}"`,
+              `"${p.difKm}"`,
+              `"${p.difDias}"`,
+              `"${pctFormatted}"`,
+              `"${obsFormatted}"`,
+              ''
+            ].join(';');
+            lines.push(row);
+          });
+        });
+
+        const content = lines.join('\r\n');
+        const encodedBytes = encodeToISO88591(content);
+        const blob = new Blob([encodedBytes], { type: 'text/csv;charset=iso-8859-1;' });
+        triggerDownload(blob, `frota_atualizada_${dateSuffix}.csv`);
+      } else {
+        // Tabela Plana para Excel (UTF-8 com BOM) incluindo Garagem e Anomalia
+        lines.push([
+          'Frota', 'Codigo Sistema', 'Garagem', 'Data Ref.', 'KM Atual', 'Plano de Manutencao',
+          'Int. Km', 'Int. Dias', 'Ultima Data', 'Ultimo Hodom.', 'O.S.', 'Oficina',
+          'Rodado Km', 'Rodado Dias', 'Diferenca Km', 'Diferenca Dias', '% Vencido', 'Situacao', 'Alerta KM'
+        ].join(';'));
+
+        appState.vehicles.forEach(v => {
+          v.plans.forEach(p => {
+            const pctFormatted = p.pct.toFixed(2).replace('.', ',');
+            const sit = p.obs || 'Em dia';
+            const anom = p.anomaly ? p.anomaly.label : '';
+            lines.push([
+              `"${v.fleetNumber}"`,
+              `"${v.prefix}"`,
+              `"${v.garage}"`,
+              `"${v.refDate}"`,
+              v.km,
+              `"${p.name}"`,
+              p.intKm,
+              p.intDias,
+              `"${p.lastDate}"`,
+              p.lastHodom,
+              `"${p.os}"`,
+              `"${p.ofic}"`,
+              p.rodadoKm,
+              p.rodadoDias,
+              p.difKm,
+              p.difDias,
+              `"${pctFormatted}"`,
+              `"${sit}"`,
+              `"${anom}"`
+            ].join(';'));
+          });
+        });
+
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        triggerDownload(blob, `frota_excel_${dateSuffix}.csv`);
+      }
+
+      closeModal('exportModal');
+      showToast('Download do CSV iniciado!', 'success');
+    }
+
+    /**
+     * Converte string JS (UTF-16) para Uint8Array em ISO-8859-1 (Latin-1)
+     */
+    function encodeToISO88591(str) {
+      const buf = new Uint8Array(str.length);
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        buf[i] = code <= 255 ? code : 63; // '?' fallback se houver caractere fora do Latin-1
+      }
+      return buf;
+    }
+
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    /**
+     * DADOS DE EXEMPLO (PARA TESTE IMEDIATO SEM ARQUIVO)
+     */
+    function loadDemoData() {
+      const sampleCSV = `"Relatório de Manutenção Preventiva";"";"";"";"";"";"";"";"";"";"";"";""
+"Data de Referência:";"25/11/2026"
+"Veiculo: 027/001 ( Data:25/11/2026 - Km 807143 - Km Complementar : 0)"
+Manutenção Preventiva;;;Última Manutenção;;;;Rodado;;Diferença;;%;Observação;
+Plano de Manutenção;Int. Km;Int. Dias;Data;Hodôm.;O.S.;Ofic.;Km;Dias;Km;Dias;Vencido;;
+"016-REVISÃO ARRANQUE";"120000";"0";"13/11/2025";"748606";"1092065";"206";"58537";"377";"-61463";"0";"-51,22";"  ";
+"502-TROCA DE ÓLEO MOTOR";"20000";"0";"10/10/2026";"786500";"1094100";"206";"20643";"46";"643";"0";"3,22";"Vencido";
+"Veiculo: 027/009 ( Data:25/11/2026 - Km 14200 - Km Complementar : 0)"
+Manutenção Preventiva;;;Última Manutenção;;;;Rodado;;Diferença;;%;Observação;
+Plano de Manutenção;Int. Km;Int. Dias;Data;Hodôm.;O.S.;Ofic.;Km;Dias;Km;Dias;Vencido;;
+"502-TROCA DE ÓLEO MOTOR";"20000";"0";"02/09/2026";"995100";"1091200";"104";"19100";"84";"-900";"0";"-4,50";"Atingiu o limite inferior";
+"089-REVISÃO CUBOS DE RODA";"60000";"0";"14/05/2026";"940000";"1090112";"104";"74200";"195";"14200";"0";"23,67";"Vencido";
+"Veiculo: 077/435 ( Data:25/11/2026 - Km 654320 - Km Complementar : 0)"
+Manutenção Preventiva;;;Última Manutenção;;;;Rodado;;Diferença;;%;Observação;
+Plano de Manutenção;Int. Km;Int. Dias;Data;Hodôm.;O.S.;Ofic.;Km;Dias;Km;Dias;Vencido;;
+"502-TROCA DE ÓLEO MOTOR";"20000";"0";"02/11/2026";"641200";"1094890";"206";"13120";"23";"-6880";"0";"-34,40";"  ";
+"112-FILTRO SECADOR DE AR";"40000";"0";"20/08/2026";"1";"1092990";"206";"654319";"97";"614319";"0";"1535,80";"Vencido";`;
+
+      const parsed = parseBlockCSV(sampleCSV);
+      appState = {
+        fileName: 'exemplo_frota.csv',
+        lastUpdated: new Date().toISOString(),
+        headerLines: parsed.headerLines,
+        globalRefDate: parsed.globalRefDate,
+        vehicles: parsed.vehicles
+      };
+      selectedGarage = 'ALL';
+      selectedPlan = 'ALL';
+      expandedVehicles.clear();
+      expandedVehicles.add(1); // Abre o carro 9 (exemplo de virada/erro de hodômetro)
+      saveStateToStorage();
+      initializeAppUI();
+      showToast('Dados de exemplo carregados!', 'info');
+    }
+
+    /**
+     * FUNÇÕES UTILITÁRIAS (DATAS, FORMATAÇÃO, TOAST)
+     */
+    function formatNumber(num) {
+      return Number(num || 0).toLocaleString('pt-BR');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    function brDateToIso(brDate) {
+      if (!brDate || !brDate.includes('/')) return '';
+      const [d, m, y] = brDate.split('/');
+      if (!d || !m || !y) return '';
+      return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    function isoDateToBr(isoDate) {
+      if (!isoDate || !isoDate.includes('-')) return '';
+      const [y, m, d] = isoDate.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    function parseBrDate(brDate) {
+      if (!brDate || !brDate.includes('/')) return null;
+      const [d, m, y] = brDate.split('/').map(Number);
+      if (!d || !m || !y) return null;
+      return new Date(y, m - 1, d);
+    }
+
+    function todayIsoDate() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const colors = {
+        success: 'bg-emerald-700 text-white border-emerald-500',
+        error: 'bg-red-700 text-white border-red-500',
+        info: 'bg-slate-800 text-white border-slate-600'
+      };
+
+      toast.className = `${colors[type] || colors.info} border px-4 py-3 rounded-2xl shadow-lg text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 transition-all duration-300`;
+      toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
